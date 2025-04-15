@@ -7,10 +7,15 @@ import subprocess
 import os
 import sys
 
+LOCAL = True
+
 
 def pa3_command(kind, nranks, testfile):
     assert kind in ["spgemm", "apsp"]
-    return ["srun", "-n", str(nranks), "./pa3", kind, testfile]
+    if LOCAL:
+        return ["mpirun", "-np", str(nranks), "./pa3", kind, testfile]
+    else:
+        return ["srun", "-n", str(nranks), "./pa3", kind, testfile]
 
 
 def run_pa3(kind, nranks, testfile):

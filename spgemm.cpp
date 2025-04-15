@@ -1,16 +1,18 @@
-#include "functions.h"
+#include <mpi.h>
 
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <map>
-#include <mpi.h>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "functions.h"
+
 #ifndef SUBMIT
 #define SUBMIT false
-#if SUMBMIT
+#if SUBMIT
 
 #define TAG_SIZE 0
 #define TAG_DATA 1
@@ -20,6 +22,34 @@ typedef std::vector<coo_entry_t> coo_matrix_t;
 
 #endif
 #endif
+
+inline void pack_coo_matrix(
+    coo_matrix_t const &unpacked_matrix,
+    std::vector<int> &packed_matrix)
+{
+    packed_matrix.resize(3 * unpacked_matrix.size());
+
+    for (size_t i = 0; i < unpacked_matrix.size(); i++)
+    {
+        packed_matrix[3 * i] = unpacked_matrix[i].first.first;
+        packed_matrix[3 * i + 1] = unpacked_matrix[i].first.second;
+        packed_matrix[3 * i + 2] = unpacked_matrix[i].second;
+    }
+}
+
+inline void unpack_coo_matrix(
+    coo_matrix_t &unpacked_matrix,
+    std::vector<int> const &packed_matrix)
+{
+    unpacked_matrix.resize(packed_matrix.size() / 3);
+
+    for (size_t i = 0; i < packed_matrix.size() / 3; i++)
+    {
+        unpacked_matrix[i] = std::make_pair(
+            std::make_pair(packed_matrix[3 * i], packed_matrix[3 * i + 1]),
+            packed_matrix[3 * i + 2]);
+    }
+}
 
 void spgemm_2d(
     int m,
@@ -34,7 +64,116 @@ void spgemm_2d(
     MPI_Comm col_comm)
 {
     // Get the rank of the processor
-    int row_rank, col_rank;
+    int row_rank, row_size, col_rank, col_size;
     MPI_Comm_rank(row_comm, &row_rank);
+    MPI_Comm_size(row_comm, &row_size);
     MPI_Comm_rank(col_comm, &col_rank);
+    MPI_Comm_size(col_comm, &col_size);
+    // We own A[row_rank, col_rank] and B[row_rank, col_rank]
+
+    // Both the row size and the column size should be equal, since the layout
+    // is a square
+    assert(row_size == col_size);
+    const int k_sqrt_num_procs = row_size;
+
+    // Set up an intermediate data structure to store the local computation of C
+    std::unordered_map<int64_t, int> local_C;
+
+    // SUMMA loop
+    for (int k = 0; k < k_sqrt_num_procs; k++)
+    {
+        // If we own the block at A[row_rank, k], broadcast it to all processors
+        // in row row_rank. Only do so if the block has non-zero entries
+        coo_matrix_t global_A;
+        if (row_rank == k)
+            global_A = A;
+
+        std::vector<int> A_packed_matrix_buffer;
+        pack_coo_matrix(global_A, A_packed_matrix_buffer);
+
+        int A_packed_matrix_buffer_size = A_packed_matrix_buffer.size();
+        MPI_Bcast(&A_packed_matrix_buffer_size, 1, MPI_INT, k, row_comm);
+        if (row_rank != k)
+            A_packed_matrix_buffer.resize(A_packed_matrix_buffer_size);
+
+        MPI_Bcast(
+            A_packed_matrix_buffer.data(),
+            A_packed_matrix_buffer_size,
+            MPI_INT,
+            k,
+            row_comm);
+
+        // If we own the block at A[k, col_rank], broadcast it to all processors
+        // in col col_rank. Only do so if the block has non-zero entries
+        coo_matrix_t global_B;
+        if (col_rank == k)
+            global_B = B;
+
+        std::vector<int> B_packed_matrix_buffer;
+        pack_coo_matrix(global_B, B_packed_matrix_buffer);
+
+        int B_packed_matrix_buffer_size = B_packed_matrix_buffer.size();
+        MPI_Bcast(&B_packed_matrix_buffer_size, 1, MPI_INT, k, col_comm);
+        if (col_rank != k)
+            B_packed_matrix_buffer.resize(B_packed_matrix_buffer_size);
+
+        MPI_Bcast(
+            B_packed_matrix_buffer.data(),
+            B_packed_matrix_buffer_size,
+            MPI_INT,
+            k,
+            col_comm);
+
+        // Recieve and unpack broadcasted data
+        coo_matrix_t recv_A;
+        unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
+
+        coo_matrix_t recv_B;
+        unpack_coo_matrix(recv_B, B_packed_matrix_buffer);
+
+        // Hande sparse matrix multiplication logic:
+        //   We need to perform block matrix multiplication, which follows the
+        //   same structure as regular matrix multiplication. We have the following
+        //   blocks available to us here:
+        //      A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
+        for (auto const &[A_idx, A_value] : recv_A)
+        {
+            int global_row_A = A_idx.first;
+            int inner_dim_A = A_idx.second;
+
+            for (auto const &[B_idx, B_value] : recv_B)
+            {
+                int inner_dim_B = B_idx.first;
+                int global_col_B = B_idx.second;
+
+                // Check if inner dimensions match for multiplication
+                if (inner_dim_A == inner_dim_B)
+                {
+                    int product = times(A_value, B_value);
+
+                    // Calculate the key for the output C(i, j) entry
+                    // Use global row from A and global col from B
+                    int C_row = global_row_A;
+                    int C_col = global_col_B;
+
+                    int key = C_row * n + C_col;
+
+                    // Accumulate the product into the map
+                    if (local_C.count(key))
+                        local_C[key] = plus(local_C[key], product);
+                    else
+                        local_C[key] = product;
+                }
+            }
+        }
+    }
+
+    // Load the local_C into C
+    C.clear();
+    for (auto const &kvp : local_C)
+    {
+        int C_row = kvp.first / n;
+        int C_col = kvp.first % n;
+        C.push_back({ { C_row, C_col }, kvp.second });
+    }
 }

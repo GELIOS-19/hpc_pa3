@@ -1,5 +1,3 @@
-#include "functions.h"
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -9,9 +7,11 @@
 #include <string>
 #include <vector>
 
+#include "functions.h"
+
 #ifndef SUBMIT
 #define SUBMIT false
-#if SUMBMIT
+#if SUBMIT
 
 #define TAG_SIZE 0
 #define TAG_DATA 1
@@ -48,8 +48,8 @@ void distribute_matrix_2d(
     if (rank == root)
     {
         // Set up destination rank data
-        std::vector<coo_matrix_t>
-            dest_buffers = std::vector<coo_matrix_t>(k_num_procs);
+        std::vector<coo_matrix_t> dest_buffers =
+            std::vector<coo_matrix_t>(k_num_procs);
 
         for (const auto &[idx, value] : full_matrix)
         {
@@ -58,7 +58,8 @@ void distribute_matrix_2d(
 
             // Using this, we obtain the rank of the destination processor
             int dest_rank;
-            MPI_Cart_rank(comm_2d, (int[2]){ target_pr, target_pc }, &dest_rank);
+            int coords[2] = { target_pr, target_pc };
+            MPI_Cart_rank(comm_2d, coords, &dest_rank);
 
             // Add the data that needs to be send to the destination buffer
             dest_buffers[dest_rank].push_back(std::make_pair(idx, value));
@@ -66,8 +67,8 @@ void distribute_matrix_2d(
 
         // Create destined data to be send to the destination rank
         std::vector<int> dest_buffer_sizes = std::vector<int>(k_num_procs);
-        std::vector<std::vector<int>>
-            packed_dest_buffers = std::vector<std::vector<int>>(k_num_procs);
+        std::vector<std::vector<int>> packed_dest_buffers =
+            std::vector<std::vector<int>>(k_num_procs);
 
         for (int proc_rank = 0; proc_rank < k_num_procs; proc_rank++)
         {
@@ -75,16 +76,22 @@ void distribute_matrix_2d(
             dest_buffer_sizes[proc_rank] = dest_buffers[proc_rank].size();
 
             // Create the packed data
-            std::vector<int>
-                &const packed_dest_buffer = packed_dest_buffers[proc_rank];
+            std::vector<int> &packed_dest_buffer =
+                packed_dest_buffers[proc_rank];
             packed_dest_buffer.resize(3 * dest_buffer_sizes[proc_rank]);
 
             for (int i = 0; i < dest_buffer_sizes[proc_rank]; i++)
             {
-                packed_dest_buffer[3 * i + 0] = dest_buffers[proc_rank][i].first.first;
-                packed_dest_buffer[3 * i + 1] = dest_buffers[proc_rank][i].first.second;
-                packed_dest_buffer[3 * i + 2] = dest_buffers[proc_rank][i].second;
+                packed_dest_buffer[3 * i + 0] =
+                    dest_buffers[proc_rank][i].first.first;
+                packed_dest_buffer[3 * i + 1] =
+                    dest_buffers[proc_rank][i].first.second;
+                packed_dest_buffer[3 * i + 2] =
+                    dest_buffers[proc_rank][i].second;
             }
+
+            if (proc_rank == root)
+                local_matrix = dest_buffers[proc_rank];
         }
 
         // Setup send request vector for non-blocking sends
@@ -92,11 +99,14 @@ void distribute_matrix_2d(
         //     1 for the buffer size
         //     1 for the buffer data
         std::vector<MPI_Request> send_requests;
-        send_requests.reserve(2 * k_num_procs);
+        send_requests.reserve(2 * (k_num_procs - 1));
 
         // Send destined data to the destination rank using non-blocking sends
         for (int proc_rank = 0; proc_rank < k_num_procs; proc_rank++)
         {
+            if (proc_rank == root)
+                continue;
+
             // Send the buffer size
             send_requests.emplace_back();
             MPI_Isend(
@@ -133,30 +143,41 @@ void distribute_matrix_2d(
         }
     }
 
-    // Recieve the data size
-    int dest_buffer_size;
-    MPI_Recv(&dest_buffer_size, 1, MPI_INT, root, TAG_SIZE, comm_2d, MPI_STATUS_IGNORE);
-
-    if (dest_buffer_size > 0)
+    if (rank != root)
     {
-        // Receive the data
-        std::vector<int> packed_buffer = std::vector<int>(3 * dest_buffer_size);
+        // Recieve the data size
+        int dest_buffer_size;
         MPI_Recv(
-            packed_buffer.data(),
-            3 * dest_buffer_size,
+            &dest_buffer_size,
+            1,
             MPI_INT,
             root,
-            TAG_DATA,
+            TAG_SIZE,
             comm_2d,
             MPI_STATUS_IGNORE);
 
-        // Distribute the data into the local matrix
-        for (int i = 0; i < 3 * dest_buffer_size; i += 3)
+        if (dest_buffer_size > 0)
         {
-            local_matrix.push_back(
-                std::make_pair(
-                    std::make_pair(packed_buffer[i], packed_buffer[i + 1]),
-                    packed_buffer[i + 2]));
+            // Receive the data
+            std::vector<int> packed_buffer =
+                std::vector<int>(3 * dest_buffer_size);
+            MPI_Recv(
+                packed_buffer.data(),
+                3 * dest_buffer_size,
+                MPI_INT,
+                root,
+                TAG_DATA,
+                comm_2d,
+                MPI_STATUS_IGNORE);
+
+            // Distribute the data into the local matrix
+            for (int i = 0; i < 3 * dest_buffer_size; i += 3)
+            {
+                local_matrix.push_back(
+                    std::make_pair(
+                        std::make_pair(packed_buffer[i], packed_buffer[i + 1]),
+                        packed_buffer[i + 2]));
+            }
         }
     }
 }

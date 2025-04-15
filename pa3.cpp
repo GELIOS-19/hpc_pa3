@@ -1,5 +1,3 @@
-#include "functions.h"
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -8,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "functions.h"
 
 // Read in a testfile for the spgemm and APSP code
 void read_testfile(
@@ -136,7 +136,15 @@ void gather_matrix(
     {
         std::vector<int> recvcounts;
         recvcounts.resize(size);
-        MPI_Gather(&local_count, 1, MPI_INT, recvcounts.data(), 1, MPI_INT, root, comm);
+        MPI_Gather(
+            &local_count,
+            1,
+            MPI_INT,
+            recvcounts.data(),
+            1,
+            MPI_INT,
+            root,
+            comm);
 
         std::vector<int> disps;
         disps.push_back(0);
@@ -191,7 +199,9 @@ void gather_matrix(
         for (int i = 0; i < total_count; ++i)
         {
             full_matrix.push_back(
-                std::make_pair(std::make_pair(recv_idx1[i], recv_idx2[i]), recv_values[i]));
+                std::make_pair(
+                    std::make_pair(recv_idx1[i], recv_idx2[i]),
+                    recv_values[i]));
         }
     }
     else
@@ -279,7 +289,10 @@ int main(int argc, char **argv)
     {
         if (rank == 0)
         {
-            std::cerr << "Usage: " << argv[0] << " [TEST_TYPE] [TEST_INPUT]\n\n";
+            std::cerr
+                << "Usage: "
+                << argv[0]
+                << " [TEST_TYPE] [TEST_INPUT]\n\n";
             std::cerr << "TEST_TYPE is one of [spgemm, apsp]\n";
         }
         MPI_Finalize();
@@ -401,12 +414,16 @@ int main(int argc, char **argv)
     {
         if (test_type == "spgemm")
         {
-            std::sort(complete_spgemm_result.begin(), complete_spgemm_result.end());
+            std::sort(
+                complete_spgemm_result.begin(),
+                complete_spgemm_result.end());
             ret = correctness_check(complete_spgemm_result, expected_result);
         }
         else
         {
-            std::sort(complete_computed_dist.begin(), complete_computed_dist.end());
+            std::sort(
+                complete_computed_dist.begin(),
+                complete_computed_dist.end());
             ret = correctness_check(complete_computed_dist, expected_result);
         }
     }

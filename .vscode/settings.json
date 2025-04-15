@@ -68,6 +68,9 @@
         "mutex": "cpp",
         "__locale": "cpp",
         "execution": "cpp",
-        "__verbose_abort": "cpp"
+        "__verbose_abort": "cpp",
+        "chrono": "cpp",
+        "bitset": "cpp",
+        "__node_handle": "cpp"
     }
 }

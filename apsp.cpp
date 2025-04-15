@@ -1,15 +1,17 @@
-#include "functions.h"
+#include <mpi.h>
 
 #include <array>
 #include <cassert>
 #include <iostream>
-#include <mpi.h>
+#include <limits>
 #include <utility>
 #include <vector>
 
+#include "functions.h"
+
 #ifndef SUBMIT
 #define SUBMIT false
-#if SUMBMIT
+#if SUBMIT
 
 #define TAG_SIZE 0
 #define TAG_DATA 1
@@ -41,9 +43,15 @@ void apsp(
             L_tmp,
             L,
             // TODO: Choose operation here
-            [](int a, int b) { return 0; },
+            [](int a, int b) { return std::min(a, b); },
             // TODO: Choose operation here
-            [](int a, int b) { return 0; },
+            [](int a, int b)
+            {
+                return a == std::numeric_limits<int>::max() / 2
+                               || b == std::numeric_limits<int>::max() / 2
+                           ? std::numeric_limits<int>::max() / 2
+                           : a + b;
+            },
             row_comm,
             col_comm);
         max_iter *= 2;
