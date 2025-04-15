@@ -9,18 +9,15 @@
 
 #include "functions.h"
 
-#ifndef SUBMIT
-#define SUBMIT false
-#if SUBMIT
-
+#ifndef TAG_SIZE
 #define TAG_SIZE 0
+#endif
+#ifndef TAG_DATA
 #define TAG_DATA 1
+#endif
 
 typedef std::pair<std::pair<int, int>, int> coo_entry_t;
 typedef std::vector<coo_entry_t> coo_matrix_t;
-
-#endif
-#endif
 
 void apsp(
     int n,
