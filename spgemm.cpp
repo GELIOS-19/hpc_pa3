@@ -146,6 +146,10 @@ void spgemm_2d(
             &reqs[3]);
 
         // Recieve and unpack broadcasted data
+        coo_matrix_t recv_A;
+        MPI_Wait(&reqs[1], &stats[1]);
+        unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
+
         coo_matrix_t recv_B;
         MPI_Wait(&reqs[3], &stats[3]);
         unpack_coo_matrix(recv_B, B_packed_matrix_buffer);
@@ -159,10 +163,6 @@ void spgemm_2d(
             B_entry_lookup[inner_dim_B]
                 .push_back(std::make_pair(B_idx.second, B_value));
         }
-
-        coo_matrix_t recv_A;
-        MPI_Wait(&reqs[1], &stats[1]);
-        unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
 
         // Hande sparse matrix multiplication logic:
         //   We need to perform block matrix multiplication, which follows the
