@@ -20,9 +20,7 @@
 typedef std::pair<std::pair<int, int>, int> coo_entry_t;
 typedef std::vector<coo_entry_t> coo_matrix_t;
 
-static inline void pack_coo_matrix(
-    coo_matrix_t const &unpacked_matrix,
-    std::vector<int> &packed_matrix)
+static inline void pack_coo_matrix(coo_matrix_t const &unpacked_matrix, std::vector<int> &packed_matrix)
 {
     packed_matrix.resize(3 * unpacked_matrix.size());
 
@@ -34,9 +32,7 @@ static inline void pack_coo_matrix(
     }
 }
 
-static inline void unpack_coo_matrix(
-    coo_matrix_t &unpacked_matrix,
-    std::vector<int> const &packed_matrix)
+static inline void unpack_coo_matrix(coo_matrix_t &unpacked_matrix, std::vector<int> const &packed_matrix)
 {
     unpacked_matrix.resize(packed_matrix.size() / 3);
 
@@ -105,45 +101,21 @@ void spgemm_2d(
         int A_packed_matrix_buffer_size = A_packed_matrix_buffer.size();
         int B_packed_matrix_buffer_size = B_packed_matrix_buffer.size();
 
-        MPI_Ibcast(
-            &A_packed_matrix_buffer_size,
-            1,
-            MPI_INT,
-            k,
-            row_comm,
-            &reqs[0]);
-        MPI_Ibcast(
-            &B_packed_matrix_buffer_size,
-            1,
-            MPI_INT,
-            k,
-            col_comm,
-            &reqs[2]);
+        MPI_Ibcast(&A_packed_matrix_buffer_size, 1, MPI_INT, k, row_comm, &reqs[0]);
+        MPI_Ibcast(&B_packed_matrix_buffer_size, 1, MPI_INT, k, col_comm, &reqs[2]);
 
         // Broadcast data
         MPI_Wait(&reqs[0], &stats[0]);
         if (row_rank != k)
             A_packed_matrix_buffer.resize(A_packed_matrix_buffer_size);
 
-        MPI_Ibcast(
-            A_packed_matrix_buffer.data(),
-            A_packed_matrix_buffer_size,
-            MPI_INT,
-            k,
-            row_comm,
-            &reqs[1]);
+        MPI_Ibcast(A_packed_matrix_buffer.data(), A_packed_matrix_buffer_size, MPI_INT, k, row_comm, &reqs[1]);
 
         MPI_Wait(&reqs[2], &stats[2]);
         if (col_rank != k)
             B_packed_matrix_buffer.resize(B_packed_matrix_buffer_size);
 
-        MPI_Ibcast(
-            B_packed_matrix_buffer.data(),
-            B_packed_matrix_buffer_size,
-            MPI_INT,
-            k,
-            col_comm,
-            &reqs[3]);
+        MPI_Ibcast(B_packed_matrix_buffer.data(), B_packed_matrix_buffer_size, MPI_INT, k, col_comm, &reqs[3]);
 
         // Recieve and unpack broadcasted data
         coo_matrix_t recv_A;
@@ -155,13 +127,11 @@ void spgemm_2d(
         unpack_coo_matrix(recv_B, B_packed_matrix_buffer);
 
         // We can hash the B matrix for efficiency
-        std::unordered_map<int, std::vector<std::pair<int, int>>>
-            B_entry_lookup;
+        std::unordered_map<int, std::vector<std::pair<int, int>>> B_entry_lookup;
         for (auto const &[B_idx, B_value] : recv_B)
         {
             int inner_dim_B = B_idx.first;
-            B_entry_lookup[inner_dim_B]
-                .push_back(std::make_pair(B_idx.second, B_value));
+            B_entry_lookup[inner_dim_B].push_back(std::make_pair(B_idx.second, B_value));
         }
 
         // Hande sparse matrix multiplication logic:
@@ -174,8 +144,7 @@ void spgemm_2d(
             int global_row_A = A_idx.first;
             int inner_dim_A = A_idx.second;
 
-            std::vector<std::pair<int, int>> const &B_values =
-                B_entry_lookup[inner_dim_A];
+            std::vector<std::pair<int, int>> const &B_values = B_entry_lookup[inner_dim_A];
 
             for (auto const &[global_col_B, B_value] : B_values)
             {

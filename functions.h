@@ -1,8 +1,9 @@
 #ifndef _FUNCTIONS_H_
 #define _FUNCTIONS_H_
 
-#include <functional>
 #include <mpi.h>
+
+#include <functional>
 #include <vector>
 
 #define TAG_SIZE 0

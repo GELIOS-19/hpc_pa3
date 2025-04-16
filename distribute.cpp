@@ -45,8 +45,7 @@ void distribute_matrix_2d(
     if (rank == root)
     {
         // Set up destination rank data
-        std::vector<coo_matrix_t> dest_buffers =
-            std::vector<coo_matrix_t>(k_num_procs);
+        std::vector<coo_matrix_t> dest_buffers = std::vector<coo_matrix_t>(k_num_procs);
 
         for (const auto &[idx, value] : full_matrix)
         {
@@ -73,18 +72,14 @@ void distribute_matrix_2d(
             dest_buffer_sizes[proc_rank] = dest_buffers[proc_rank].size();
 
             // Create the packed data
-            std::vector<int> &packed_dest_buffer =
-                packed_dest_buffers[proc_rank];
+            std::vector<int> &packed_dest_buffer = packed_dest_buffers[proc_rank];
             packed_dest_buffer.resize(3 * dest_buffer_sizes[proc_rank]);
 
             for (int i = 0; i < dest_buffer_sizes[proc_rank]; i++)
             {
-                packed_dest_buffer[3 * i + 0] =
-                    dest_buffers[proc_rank][i].first.first;
-                packed_dest_buffer[3 * i + 1] =
-                    dest_buffers[proc_rank][i].first.second;
-                packed_dest_buffer[3 * i + 2] =
-                    dest_buffers[proc_rank][i].second;
+                packed_dest_buffer[3 * i + 0] = dest_buffers[proc_rank][i].first.first;
+                packed_dest_buffer[3 * i + 1] = dest_buffers[proc_rank][i].first.second;
+                packed_dest_buffer[3 * i + 2] = dest_buffers[proc_rank][i].second;
             }
 
             if (proc_rank == root)
@@ -133,10 +128,7 @@ void distribute_matrix_2d(
         // Wait for all the requests
         if (!send_requests.empty())
         {
-            MPI_Waitall(
-                static_cast<int>(send_requests.size()),
-                send_requests.data(),
-                MPI_STATUSES_IGNORE);
+            MPI_Waitall(static_cast<int>(send_requests.size()), send_requests.data(), MPI_STATUSES_IGNORE);
         }
     }
 
@@ -144,28 +136,13 @@ void distribute_matrix_2d(
     {
         // Recieve the data size
         int dest_buffer_size;
-        MPI_Recv(
-            &dest_buffer_size,
-            1,
-            MPI_INT,
-            root,
-            TAG_SIZE,
-            comm_2d,
-            MPI_STATUS_IGNORE);
+        MPI_Recv(&dest_buffer_size, 1, MPI_INT, root, TAG_SIZE, comm_2d, MPI_STATUS_IGNORE);
 
         if (dest_buffer_size > 0)
         {
             // Receive the data
-            std::vector<int> packed_buffer =
-                std::vector<int>(3 * dest_buffer_size);
-            MPI_Recv(
-                packed_buffer.data(),
-                3 * dest_buffer_size,
-                MPI_INT,
-                root,
-                TAG_DATA,
-                comm_2d,
-                MPI_STATUS_IGNORE);
+            std::vector<int> packed_buffer = std::vector<int>(3 * dest_buffer_size);
+            MPI_Recv(packed_buffer.data(), 3 * dest_buffer_size, MPI_INT, root, TAG_DATA, comm_2d, MPI_STATUS_IGNORE);
 
             // Distribute the data into the local matrix
             for (int i = 0; i < 3 * dest_buffer_size; i += 3)

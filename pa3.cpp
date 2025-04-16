@@ -107,8 +107,7 @@ void flatten_matrix(
     }
 }
 
-std::pair<int, int> get_matrix_dimensions(
-    std::vector<std::pair<std::pair<int, int>, int>> &A)
+std::pair<int, int> get_matrix_dimensions(std::vector<std::pair<std::pair<int, int>, int>> &A)
 {
     int m = A[0].first.first;
     int n = A[0].first.second;
@@ -136,15 +135,7 @@ void gather_matrix(
     {
         std::vector<int> recvcounts;
         recvcounts.resize(size);
-        MPI_Gather(
-            &local_count,
-            1,
-            MPI_INT,
-            recvcounts.data(),
-            1,
-            MPI_INT,
-            root,
-            comm);
+        MPI_Gather(&local_count, 1, MPI_INT, recvcounts.data(), 1, MPI_INT, root, comm);
 
         std::vector<int> disps;
         disps.push_back(0);
@@ -199,9 +190,7 @@ void gather_matrix(
         for (int i = 0; i < total_count; ++i)
         {
             full_matrix.push_back(
-                std::make_pair(
-                    std::make_pair(recv_idx1[i], recv_idx2[i]),
-                    recv_values[i]));
+                std::make_pair(std::make_pair(recv_idx1[i], recv_idx2[i]), recv_values[i]));
         }
     }
     else
@@ -213,36 +202,9 @@ void gather_matrix(
         std::vector<int> send_values;
         flatten_matrix(local_matrix, send_idx1, send_idx2, send_values);
 
-        MPI_Gatherv(
-            send_idx1.data(),
-            send_idx1.size(),
-            MPI_INT,
-            NULL,
-            NULL,
-            NULL,
-            MPI_INT,
-            0,
-            comm);
-        MPI_Gatherv(
-            send_idx2.data(),
-            send_idx2.size(),
-            MPI_INT,
-            NULL,
-            NULL,
-            NULL,
-            MPI_INT,
-            0,
-            comm);
-        MPI_Gatherv(
-            send_values.data(),
-            send_values.size(),
-            MPI_INT,
-            NULL,
-            NULL,
-            NULL,
-            MPI_INT,
-            0,
-            comm);
+        MPI_Gatherv(send_idx1.data(), send_idx1.size(), MPI_INT, NULL, NULL, NULL, MPI_INT, 0, comm);
+        MPI_Gatherv(send_idx2.data(), send_idx2.size(), MPI_INT, NULL, NULL, NULL, MPI_INT, 0, comm);
+        MPI_Gatherv(send_values.data(), send_values.size(), MPI_INT, NULL, NULL, NULL, MPI_INT, 0, comm);
     }
 }
 
@@ -289,10 +251,7 @@ int main(int argc, char **argv)
     {
         if (rank == 0)
         {
-            std::cerr
-                << "Usage: "
-                << argv[0]
-                << " [TEST_TYPE] [TEST_INPUT]\n\n";
+            std::cerr << "Usage: " << argv[0] << " [TEST_TYPE] [TEST_INPUT]\n\n";
             std::cerr << "TEST_TYPE is one of [spgemm, apsp]\n";
         }
         MPI_Finalize();
@@ -313,14 +272,7 @@ int main(int argc, char **argv)
         read_testfile(fname, file_type, A_complete, expected_result);
         if (file_type != test_type)
         {
-            std::cerr
-                << "File "
-                << fname
-                << " is the wrong file type: got "
-                << file_type
-                << " but expected "
-                << test_type
-                << "\n";
+            std::cerr << "File " << fname << " is the wrong file type: got " << file_type << " but expected " << test_type << "\n";
             file_error = 1;
         }
         else
@@ -414,16 +366,12 @@ int main(int argc, char **argv)
     {
         if (test_type == "spgemm")
         {
-            std::sort(
-                complete_spgemm_result.begin(),
-                complete_spgemm_result.end());
+            std::sort(complete_spgemm_result.begin(), complete_spgemm_result.end());
             ret = correctness_check(complete_spgemm_result, expected_result);
         }
         else
         {
-            std::sort(
-                complete_computed_dist.begin(),
-                complete_computed_dist.end());
+            std::sort(complete_computed_dist.begin(), complete_computed_dist.end());
             ret = correctness_check(complete_computed_dist, expected_result);
         }
     }
