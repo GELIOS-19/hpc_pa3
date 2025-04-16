@@ -76,6 +76,10 @@ void spgemm_2d(
     // Set up an intermediate data structure to store the local computation of C
     std::unordered_map<int64_t, int> local_C;
 
+    // MPI Requests for non-blocking communication
+    MPI_Request reqs[4]; // 0: A_size, 1: A_data, 2: B_size, 3: B_data
+    MPI_Status stats[4];
+
     // SUMMA loop
     for (int k = 0; k < k_sqrt_num_procs; k++)
     {
@@ -88,18 +92,6 @@ void spgemm_2d(
         std::vector<int> A_packed_matrix_buffer;
         pack_coo_matrix(global_A, A_packed_matrix_buffer);
 
-        int A_packed_matrix_buffer_size = A_packed_matrix_buffer.size();
-        MPI_Bcast(&A_packed_matrix_buffer_size, 1, MPI_INT, k, row_comm);
-        if (row_rank != k)
-            A_packed_matrix_buffer.resize(A_packed_matrix_buffer_size);
-
-        MPI_Bcast(
-            A_packed_matrix_buffer.data(),
-            A_packed_matrix_buffer_size,
-            MPI_INT,
-            k,
-            row_comm);
-
         // If we own the block at A[k, col_rank], broadcast it to all processors
         // in col col_rank. Only do so if the block has non-zero entries
         coo_matrix_t global_B;
@@ -109,23 +101,57 @@ void spgemm_2d(
         std::vector<int> B_packed_matrix_buffer;
         pack_coo_matrix(global_B, B_packed_matrix_buffer);
 
+        // Broadcast sizes
+        int A_packed_matrix_buffer_size = A_packed_matrix_buffer.size();
         int B_packed_matrix_buffer_size = B_packed_matrix_buffer.size();
-        MPI_Bcast(&B_packed_matrix_buffer_size, 1, MPI_INT, k, col_comm);
+
+        MPI_Ibcast(
+            &A_packed_matrix_buffer_size,
+            1,
+            MPI_INT,
+            k,
+            row_comm,
+            &reqs[0]);
+        MPI_Ibcast(
+            &B_packed_matrix_buffer_size,
+            1,
+            MPI_INT,
+            k,
+            col_comm,
+            &reqs[2]);
+
+        // Broadcast data
+        MPI_Wait(&reqs[0], &stats[0]);
+        if (row_rank != k)
+            A_packed_matrix_buffer.resize(A_packed_matrix_buffer_size);
+
+        MPI_Ibcast(
+            A_packed_matrix_buffer.data(),
+            A_packed_matrix_buffer_size,
+            MPI_INT,
+            k,
+            row_comm,
+            &reqs[1]);
+
+        MPI_Wait(&reqs[2], &stats[2]);
         if (col_rank != k)
             B_packed_matrix_buffer.resize(B_packed_matrix_buffer_size);
 
-        MPI_Bcast(
+        MPI_Ibcast(
             B_packed_matrix_buffer.data(),
             B_packed_matrix_buffer_size,
             MPI_INT,
             k,
-            col_comm);
+            col_comm,
+            &reqs[3]);
 
         // Recieve and unpack broadcasted data
         coo_matrix_t recv_A;
+        MPI_Wait(&reqs[1], &stats[1]);
         unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
 
         coo_matrix_t recv_B;
+        MPI_Wait(&reqs[3], &stats[3]);
         unpack_coo_matrix(recv_B, B_packed_matrix_buffer);
 
         // Hande sparse matrix multiplication logic:
@@ -133,34 +159,40 @@ void spgemm_2d(
         //   same structure as regular matrix multiplication. We have the following
         //   blocks available to us here:
         //      A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
+
+        // We can hash the B matrix for efficiency
+        std::unordered_map<int, std::vector<std::pair<int, int>>>
+            B_entry_lookup;
+        for (auto const &[B_idx, B_value] : recv_B)
+        {
+            B_entry_lookup[B_idx.first]
+                .push_back(std::make_pair(B_idx.second, B_value));
+        }
+
         for (auto const &[A_idx, A_value] : recv_A)
         {
             int global_row_A = A_idx.first;
             int inner_dim_A = A_idx.second;
 
-            for (auto const &[B_idx, B_value] : recv_B)
+            std::vector<std::pair<int, int>> const &B_values =
+                B_entry_lookup[inner_dim_A];
+
+            for (auto const &[global_col_B, B_value] : B_values)
             {
-                int inner_dim_B = B_idx.first;
-                int global_col_B = B_idx.second;
+                int product = times(A_value, B_value);
 
-                // Check if inner dimensions match for multiplication
-                if (inner_dim_A == inner_dim_B)
-                {
-                    int product = times(A_value, B_value);
+                // Calculate the key for the output C(i, j) entry
+                // Use global row from A and global col from B
+                int C_row = global_row_A;
+                int C_col = global_col_B;
 
-                    // Calculate the key for the output C(i, j) entry
-                    // Use global row from A and global col from B
-                    int C_row = global_row_A;
-                    int C_col = global_col_B;
+                int64_t key = static_cast<int64_t>(C_row) * n + C_col;
 
-                    int key = C_row * n + C_col;
-
-                    // Accumulate the product into the map
-                    if (local_C.count(key))
-                        local_C[key] = plus(local_C[key], product);
-                    else
-                        local_C[key] = product;
-                }
+                // Accumulate the product into the map
+                if (local_C.count(key))
+                    local_C[key] = plus(local_C[key], product);
+                else
+                    local_C[key] = product;
             }
         }
     }
