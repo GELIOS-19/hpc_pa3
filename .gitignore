@@ -1,3 +1,4 @@
 .vscode
+perf-testfiles
 *.o
 pa3
