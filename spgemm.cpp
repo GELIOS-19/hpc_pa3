@@ -146,29 +146,29 @@ void spgemm_2d(
             &reqs[3]);
 
         // Recieve and unpack broadcasted data
-        coo_matrix_t recv_A;
-        MPI_Wait(&reqs[1], &stats[1]);
-        unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
-
         coo_matrix_t recv_B;
         MPI_Wait(&reqs[3], &stats[3]);
         unpack_coo_matrix(recv_B, B_packed_matrix_buffer);
-
-        // Hande sparse matrix multiplication logic:
-        //   We need to perform block matrix multiplication, which follows the
-        //   same structure as regular matrix multiplication. We have the following
-        //   blocks available to us here:
-        //      A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
 
         // We can hash the B matrix for efficiency
         std::unordered_map<int, std::vector<std::pair<int, int>>>
             B_entry_lookup;
         for (auto const &[B_idx, B_value] : recv_B)
         {
-            B_entry_lookup[B_idx.first]
+            int inner_dim_B = B_idx.first;
+            B_entry_lookup[inner_dim_B]
                 .push_back(std::make_pair(B_idx.second, B_value));
         }
 
+        coo_matrix_t recv_A;
+        MPI_Wait(&reqs[1], &stats[1]);
+        unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
+
+        // Hande sparse matrix multiplication logic:
+        //   We need to perform block matrix multiplication, which follows the
+        //   same structure as regular matrix multiplication. We have the
+        //   following blocks available to us here:
+        //      A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
         for (auto const &[A_idx, A_value] : recv_A)
         {
             int global_row_A = A_idx.first;
