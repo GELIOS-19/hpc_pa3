@@ -83,7 +83,9 @@ void spgemm_2d(
         // in row row_rank. Only do so if the block has non-zero entries
         coo_matrix_t global_A;
         if (row_rank == k)
+        {
             global_A = A;
+        }
 
         std::vector<int> A_packed_matrix_buffer;
         pack_coo_matrix(global_A, A_packed_matrix_buffer);
@@ -92,7 +94,9 @@ void spgemm_2d(
         // in col col_rank. Only do so if the block has non-zero entries
         coo_matrix_t global_B;
         if (col_rank == k)
+        {
             global_B = B;
+        }
 
         std::vector<int> B_packed_matrix_buffer;
         pack_coo_matrix(global_B, B_packed_matrix_buffer);
@@ -107,13 +111,17 @@ void spgemm_2d(
         // Broadcast data
         MPI_Wait(&reqs[0], &stats[0]);
         if (row_rank != k)
+        {
             A_packed_matrix_buffer.resize(A_packed_matrix_buffer_size);
+        }
 
         MPI_Ibcast(A_packed_matrix_buffer.data(), A_packed_matrix_buffer_size, MPI_INT, k, row_comm, &reqs[1]);
 
         MPI_Wait(&reqs[2], &stats[2]);
         if (col_rank != k)
+        {
             B_packed_matrix_buffer.resize(B_packed_matrix_buffer_size);
+        }
 
         MPI_Ibcast(B_packed_matrix_buffer.data(), B_packed_matrix_buffer_size, MPI_INT, k, col_comm, &reqs[3]);
 
@@ -159,9 +167,13 @@ void spgemm_2d(
 
                 // Accumulate the product into the map
                 if (local_C.count(key))
+                {
                     local_C[key] = plus(local_C[key], product);
+                }
                 else
+                {
                     local_C[key] = product;
+                }
             }
         }
     }

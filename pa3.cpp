@@ -30,7 +30,9 @@ void read_testfile(
     {
         std::getline(ifs, buffer);
         if (buffer.length() == 0)
+        {
             continue;
+        }
         std::stringstream ss{ buffer };
         char c = ss.get();
 
@@ -51,7 +53,9 @@ void read_testfile(
 
         // Skip comment lines and lines that don't start with a number
         if (c == '#' || std::isspace(c) || std::isalpha(c))
+        {
             continue;
+        }
         ss.unget();
 
         // Extract edge i---j with weight w
@@ -140,7 +144,9 @@ void gather_matrix(
         std::vector<int> disps;
         disps.push_back(0);
         for (int i = 1; i < size; ++i)
+        {
             disps.push_back(disps[i - 1] + recvcounts[i - 1]);
+        }
         int total_count = disps[size - 1] + recvcounts[size - 1];
         assert(static_cast<int>(disps.size()) == size);
         assert(static_cast<int>(recvcounts.size()) == size);
@@ -232,9 +238,13 @@ int correctness_check(
         }
     }
     if (ok)
+    {
         std::cout << "==> correctness_check=ok\n";
+    }
     else
+    {
         std::cout << "==> correctness_check=error\n";
+    }
     return ok ? 0 : 1;
 }
 
@@ -316,7 +326,9 @@ int main(int argc, char **argv)
     std::vector<std::pair<std::pair<int, int>, int>> A_T;
     distribute_matrix_2d(m, n, A_complete, A, 0, comm_2d);
     if (test_type == "spgemm")
+    {
         distribute_matrix_2d(n, m, A_T_complete, A_T, 0, comm_2d);
+    }
     // Maybe we can free up some memory with this
     A_complete.clear();
     A_T_complete.clear();
@@ -356,9 +368,13 @@ int main(int argc, char **argv)
     std::vector<std::pair<std::pair<int, int>, int>> complete_spgemm_result;
     std::vector<std::pair<std::pair<int, int>, int>> complete_computed_dist;
     if (test_type == "spgemm")
+    {
         gather_matrix(spgemm_result, complete_spgemm_result, 0, MPI_COMM_WORLD);
+    }
     else
+    {
         gather_matrix(computed_dist, complete_computed_dist, 0, MPI_COMM_WORLD);
+    }
 
     MPI_Barrier(MPI_COMM_WORLD);
     int ret = 0;

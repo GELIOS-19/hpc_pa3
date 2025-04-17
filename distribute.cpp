@@ -83,7 +83,9 @@ void distribute_matrix_2d(
             }
 
             if (proc_rank == root)
+            {
                 local_matrix = dest_buffers[proc_rank];
+            }
         }
 
         // Setup send request vector for non-blocking sends
@@ -97,7 +99,9 @@ void distribute_matrix_2d(
         for (int proc_rank = 0; proc_rank < k_num_procs; proc_rank++)
         {
             if (proc_rank == root)
+            {
                 continue;
+            }
 
             // Send the buffer size
             send_requests.emplace_back();
@@ -112,7 +116,9 @@ void distribute_matrix_2d(
 
             // Send the buffer data
             if (dest_buffer_sizes[proc_rank] == 0)
+            {
                 continue;
+            }
 
             send_requests.emplace_back();
             MPI_Isend(
