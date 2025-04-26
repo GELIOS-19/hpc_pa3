@@ -140,7 +140,7 @@ void distribute_matrix_2d(
 
     if (rank != root)
     {
-        // Recieve the data size
+        // Receive the data size
         int dest_buffer_size;
         MPI_Recv(&dest_buffer_size, 1, MPI_INT, root, TAG_SIZE, comm_2d, MPI_STATUS_IGNORE);
 

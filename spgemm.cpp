@@ -64,8 +64,7 @@ void spgemm_2d(
     MPI_Comm_size(col_comm, &col_size);
     // We own A[row_rank, col_rank] and B[row_rank, col_rank]
 
-    // Both the row size and the column size should be equal, since the layout
-    // is a square
+    // Both the row size and the column size should be equal, since the layout is a square
     assert(row_size == col_size);
     const int k_sqrt_num_procs = row_size;
 
@@ -79,8 +78,8 @@ void spgemm_2d(
     // SUMMA loop
     for (int k = 0; k < k_sqrt_num_procs; k++)
     {
-        // If we own the block at A[row_rank, k], broadcast it to all processors
-        // in row row_rank. Only do so if the block has non-zero entries
+        // If we own the block at A[row_rank, k], broadcast it to all processors in row row_rank.
+        // Only do so if the block has non-zero entries
         coo_matrix_t global_A;
         if (row_rank == k)
         {
@@ -90,8 +89,8 @@ void spgemm_2d(
         std::vector<int> A_packed_matrix_buffer;
         pack_coo_matrix(global_A, A_packed_matrix_buffer);
 
-        // If we own the block at A[k, col_rank], broadcast it to all processors
-        // in col col_rank. Only do so if the block has non-zero entries
+        // If we own the block at A[k, col_rank], broadcast it to all processors in col col_rank.
+        // Only do so if the block has non-zero entries
         coo_matrix_t global_B;
         if (col_rank == k)
         {
@@ -125,7 +124,7 @@ void spgemm_2d(
 
         MPI_Ibcast(B_packed_matrix_buffer.data(), B_packed_matrix_buffer_size, MPI_INT, k, col_comm, &reqs[3]);
 
-        // Recieve and unpack broadcasted data
+        // Receive and unpack broadcasted data
         coo_matrix_t recv_A;
         MPI_Wait(&reqs[1], &stats[1]);
         unpack_coo_matrix(recv_A, A_packed_matrix_buffer);
@@ -142,11 +141,10 @@ void spgemm_2d(
             B_entry_lookup[inner_dim_B].push_back(std::make_pair(B_idx.second, B_value));
         }
 
-        // Hande sparse matrix multiplication logic:
-        //   We need to perform block matrix multiplication, which follows the
-        //   same structure as regular matrix multiplication. We have the
-        //   following blocks available to us here:
-        //      A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
+        // Handle sparse matrix multiplication logic:
+        //     We need to perform block matrix multiplication, which follows the same structure as regular matrix multiplication.
+        //     We have the following blocks available to us here:
+        //         A[row_rank, k], B[k, col_rank], C[row_rank, col_rank]
         for (auto const &[A_idx, A_value] : recv_A)
         {
             int global_row_A = A_idx.first;

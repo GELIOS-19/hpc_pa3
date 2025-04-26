@@ -111,7 +111,8 @@ void flatten_matrix(
     }
 }
 
-std::pair<int, int> get_matrix_dimensions(std::vector<std::pair<std::pair<int, int>, int>> &A)
+std::pair<int, int> get_matrix_dimensions(
+    std::vector<std::pair<std::pair<int, int>, int>> &A)
 {
     int m = A[0].first.first;
     int n = A[0].first.second;
